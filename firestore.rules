@@ -1,0 +1,207 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Default-deny catch-all to prevent unauthorized access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Core Authentication & RBAC Helper Functions
+    // =========================================================================
+
+    // Verify user is authenticated with Firebase Auth
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Validate standard document IDs
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Convenience shorthands for request & resource data
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Check specific custom role claim in request.auth.token
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+
+    // Check if user has any of the specified roles in token claims
+    function hasAnyRole(rolesList) {
+      return isSignedIn() && request.auth.token.role in rolesList;
+    }
+
+    // Administrator check via token claims or privileged administrator account
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'super_admin' ||
+        request.auth.token.email == 'admin@example.gov.in'
+      );
+    }
+
+    // Authorized officer check (Admins, Project Directors, and Monitoring Officers)
+    function isMonitoringOfficerOrAdmin() {
+      return isAdmin() || hasAnyRole(['project_director', 'monitoring_officer']);
+    }
+
+    // Action officers capable of raising interventions (includes Nodal Officers)
+    function isFieldOfficerOrAdmin() {
+      return isMonitoringOfficerOrAdmin() || hasRole('nodal_officer');
+    }
+
+    // Document ownership check
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // Schema Validation Helpers
+    // =========================================================================
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['projectCode', 'projectName', 'ministry', 'sector', 'originalCostCr', 'status', 'riskScore'])
+        && data.projectCode is string && data.projectCode.size() > 0 && data.projectCode.size() <= 50
+        && data.projectName is string && data.projectName.size() > 0 && data.projectName.size() <= 300
+        && data.ministry is string && data.ministry.size() > 0 && data.ministry.size() <= 100
+        && data.sector is string && data.sector.size() > 0 && data.sector.size() <= 100
+        && data.originalCostCr is number && data.originalCostCr >= 0
+        && data.status is string && data.status.size() <= 50
+        && data.riskScore is number && data.riskScore >= 0 && data.riskScore <= 100;
+    }
+
+    function isValidIntervention(data) {
+      return data.keys().hasAll(['projectId', 'projectName', 'priority', 'recommendedAction'])
+        && data.projectId is string && data.projectId.size() > 0 && data.projectId.size() <= 100
+        && data.projectName is string && data.projectName.size() > 0 && data.projectName.size() <= 300
+        && data.priority is string && data.priority.size() <= 50
+        && data.recommendedAction is string && data.recommendedAction.size() <= 1000;
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll(['projectCode', 'severity', 'title'])
+        && data.projectCode is string && data.projectCode.size() > 0 && data.projectCode.size() <= 50
+        && data.severity is string && data.severity.size() <= 50
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 300;
+    }
+
+    function isValidWorkspaceItem(data) {
+      return data.keys().hasAll(['type', 'title', 'userId'])
+        && data.type is string && data.type.size() <= 50
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 300
+        && data.userId is string && data.userId == request.auth.uid;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['userId', 'action', 'entityType', 'timestamp'])
+        && data.userId is string
+        && data.action is string && data.action.size() <= 100
+        && data.entityType is string && data.entityType.size() <= 100
+        && data.timestamp is string;
+    }
+
+    // =========================================================================
+    // Collection Security Rules
+    // =========================================================================
+
+    // 1. Projects Master Collection
+    // Read: All authenticated users
+    // Create/Update: Authorized monitoring officers and admins
+    // Delete: Admin only
+    match /projects/{projectId} {
+      allow read: if isSignedIn();
+      allow create, update: if isValidId(projectId) && isMonitoringOfficerOrAdmin() && isValidProject(incoming());
+      allow delete: if isValidId(projectId) && isAdmin();
+    }
+
+    // 2. Monthly S-Curve Snapshots Collection
+    // Read: All authenticated users
+    // Write: Authorized monitoring officers and admins
+    // Delete: Admin only
+    match /monthly_snapshots/{snapshotId} {
+      allow read: if isSignedIn();
+      allow create, update: if isValidId(snapshotId) && isMonitoringOfficerOrAdmin();
+      allow delete: if isValidId(snapshotId) && isAdmin();
+    }
+
+    // 3. Project Milestones Collection
+    // Read: All authenticated users
+    // Write: Authorized monitoring officers and admins
+    // Delete: Admin only
+    match /milestones/{milestoneId} {
+      allow read: if isSignedIn();
+      allow create, update: if isValidId(milestoneId) && isMonitoringOfficerOrAdmin();
+      allow delete: if isValidId(milestoneId) && isAdmin();
+    }
+
+    // 4. ML Risk Assessments Collection
+    // Read: All authenticated users
+    // Write: Admins and system services with admin token claims
+    // Delete: Admin only
+    match /risk_assessments/{assessmentId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isValidId(assessmentId) && isAdmin();
+    }
+
+    // 5. Inter-Ministerial Interventions Collection (PMG Fast-Track)
+    // Read: All authenticated users
+    // Create/Update: Action officers (Admins, Directors, Monitoring Officers, Nodal Officers)
+    // Delete: Admin only
+    match /interventions/{interventionId} {
+      allow read: if isSignedIn();
+      allow create: if isValidId(interventionId) && isFieldOfficerOrAdmin() && isValidIntervention(incoming());
+      allow update: if isValidId(interventionId) && isFieldOfficerOrAdmin() && isValidIntervention(incoming());
+      allow delete: if isValidId(interventionId) && isAdmin();
+    }
+
+    // 6. Early Warning Anomaly Alerts Collection
+    // Read: All authenticated users
+    // Create/Update: Monitoring officers and admins
+    // Delete: Admin only
+    match /alerts/{alertId} {
+      allow read: if isSignedIn();
+      allow create, update: if isValidId(alertId) && isMonitoringOfficerOrAdmin() && isValidAlert(incoming());
+      allow delete: if isValidId(alertId) && isAdmin();
+    }
+
+    // 7. Security and Data Modification Audit Logs
+    // Read: All authenticated users
+    // Create: Any authenticated user or service
+    // Update/Delete: STRICTLY FORBIDDEN (Append-only immutable audit trail)
+    match /audit_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isValidId(logId) && isSignedIn() && isValidAuditLog(incoming());
+      allow update, delete: if false;
+    }
+
+    // 8. User Profiles and RBAC Directory
+    // Read: All authenticated users
+    // Create/Update: Admin, or self-update for non-privileged profile fields
+    // Delete: Admin only
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isValidId(userId) && (isAdmin() || (isSignedIn() && request.auth.uid == userId && (!('role' in incoming()) || incoming().role == 'viewer')));
+      allow update: if isValidId(userId) && (isAdmin() || (isSignedIn() && request.auth.uid == userId && (!('role' in incoming()) || incoming().role == existing().role)));
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 9. Workspace Integration Items
+    // Read/Write: Owner or Admin
+    match /workspace_items/{itemId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(itemId) && isSignedIn() && isValidWorkspaceItem(incoming()) && (incoming().userId == request.auth.uid || isAdmin());
+      allow update: if isValidId(itemId) && isSignedIn() && isValidWorkspaceItem(incoming()) && (existing().userId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(itemId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+  }
+}
+

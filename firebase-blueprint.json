@@ -1,0 +1,216 @@
+{
+  "entities": {
+    "project": {
+      "title": "Project",
+      "description": "Infrastructure project monitoring master record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectCode": { "type": "string" },
+        "projectName": { "type": "string" },
+        "description": { "type": "string" },
+        "ministry": { "type": "string" },
+        "sector": { "type": "string" },
+        "implementingAgency": { "type": "string" },
+        "state": { "type": "string" },
+        "district": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "originalCostCr": { "type": "number" },
+        "revisedCostCr": { "type": "number" },
+        "cumulativeExpenditureCr": { "type": "number" },
+        "originalStartDate": { "type": "string" },
+        "originalCompletionDate": { "type": "string" },
+        "currentCompletionDate": { "type": "string" },
+        "status": { "type": "string" },
+        "physicalProgressPct": { "type": "number" },
+        "financialProgressPct": { "type": "number" },
+        "riskScore": { "type": "number" },
+        "riskLevel": { "type": "string" },
+        "dataCompletenessScore": { "type": "number" },
+        "sourceName": { "type": "string" },
+        "lastSyncedAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["projectCode", "projectName", "ministry", "sector", "originalCostCr", "status", "riskScore"]
+    },
+    "monthlySnapshot": {
+      "title": "MonthlySnapshot",
+      "description": "Monthly S-Curve snapshot of physical and financial progress",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "reportingMonth": { "type": "string" },
+        "plannedPhysicalProgress": { "type": "number" },
+        "actualPhysicalProgress": { "type": "number" },
+        "plannedFinancialProgress": { "type": "number" },
+        "actualFinancialProgress": { "type": "number" },
+        "monthlyExpenditureCr": { "type": "number" },
+        "cumulativeExpenditureCr": { "type": "number" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["projectId", "reportingMonth", "actualPhysicalProgress"]
+    },
+    "milestone": {
+      "title": "Milestone",
+      "description": "Key milestone delivery tracking for project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "name": { "type": "string" },
+        "plannedDate": { "type": "string" },
+        "actualDate": { "type": "string" },
+        "status": { "type": "string" },
+        "delayDays": { "type": "number" }
+      },
+      "required": ["projectId", "name", "plannedDate", "status"]
+    },
+    "riskAssessment": {
+      "title": "RiskAssessment",
+      "description": "Historical ML risk prediction and SHAP attribution",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "assessmentDate": { "type": "string" },
+        "costOverrunProb": { "type": "number" },
+        "timeOverrunProb": { "type": "number" },
+        "overallRiskScore": { "type": "number" },
+        "riskLevel": { "type": "string" },
+        "confidenceScore": { "type": "number" },
+        "modelVersion": { "type": "string" }
+      },
+      "required": ["projectId", "overallRiskScore", "riskLevel"]
+    },
+    "intervention": {
+      "title": "Intervention",
+      "description": "Cabinet PMG inter-ministerial fast-track intervention record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "projectCode": { "type": "string" },
+        "projectName": { "type": "string" },
+        "priority": { "type": "string" },
+        "riskDriver": { "type": "string" },
+        "recommendedAction": { "type": "string" },
+        "responsibleAuthority": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "currentStatus": { "type": "string" },
+        "lastActionTaken": { "type": "string" },
+        "nextReviewDate": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["projectId", "projectName", "priority", "recommendedAction", "userId"]
+    },
+    "alert": {
+      "title": "Alert",
+      "description": "Predictive early warning anomaly detection alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectCode": { "type": "string" },
+        "projectName": { "type": "string" },
+        "severity": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "acknowledged": { "type": "boolean" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["projectCode", "severity", "title", "userId"]
+    },
+    "auditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and data modification audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["userId", "action", "entityType", "timestamp"]
+    },
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "Application user account and RBAC profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string" },
+        "ministry": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "lastLogin": { "type": "string" }
+      },
+      "required": ["email", "fullName", "role"]
+    },
+    "workspaceItem": {
+      "title": "WorkspaceItem",
+      "description": "Linked Google Workspace items (Task, Meet, Email, Calendar Event, Drive File)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "projectId": { "type": "string" },
+        "externalId": { "type": "string" },
+        "link": { "type": "string" },
+        "status": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["type", "title", "userId"]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/project" },
+      "description": "Master infrastructure projects collection"
+    },
+    "/monthly_snapshots/{snapshotId}": {
+      "schema": { "$ref": "#/entities/monthlySnapshot" },
+      "description": "Historical monthly S-Curve execution snapshots"
+    },
+    "/milestones/{milestoneId}": {
+      "schema": { "$ref": "#/entities/milestone" },
+      "description": "Project milestone delivery tracking"
+    },
+    "/risk_assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/riskAssessment" },
+      "description": "ML risk predictions and model versions"
+    },
+    "/interventions/{interventionId}": {
+      "schema": { "$ref": "#/entities/intervention" },
+      "description": "PMG Inter-ministerial interventions"
+    },
+    "/alerts/{alertId}": {
+      "schema": { "$ref": "#/entities/alert" },
+      "description": "Early warning alerts"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/auditLog" },
+      "description": "System security and data change audit logs"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/userProfile" },
+      "description": "User profiles and RBAC metadata"
+    },
+    "/workspace_items/{itemId}": {
+      "schema": { "$ref": "#/entities/workspaceItem" },
+      "description": "Workspace linked objects"
+    }
+  }
+}

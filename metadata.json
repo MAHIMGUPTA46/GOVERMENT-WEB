@@ -1,0 +1,7 @@
+{
+  "name": "PAIMANA AI – Infrastructure Monitoring",
+  "description": "Predictive Infrastructure Monitoring and Early Warning System for the Infrastructure & Project Monitoring Division (IPMD), MoSPI, Government of India.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
