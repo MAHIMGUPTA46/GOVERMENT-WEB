@@ -86,8 +86,9 @@ WORKSPACE_SCOPES.forEach((scope) => {
   googleAuthProvider.addScope(scope);
 });
 
-// In-memory token management for secure Google Workspace API interactions
-let cachedAccessToken: string | null = null;
+// Persistent token management for Google Workspace API interactions
+const STORAGE_ACCESS_TOKEN_KEY = 'paimana_workspace_access_token';
+let cachedAccessToken: string | null = (typeof window !== 'undefined') ? localStorage.getItem(STORAGE_ACCESS_TOKEN_KEY) : null;
 let isSigningIn = false;
 
 /**
@@ -190,6 +191,13 @@ export const authService = {
       const result = await signInWithPopup(auth, googleAuthProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       cachedAccessToken = credential?.accessToken || null;
+      if (typeof window !== 'undefined') {
+        if (cachedAccessToken) {
+          localStorage.setItem(STORAGE_ACCESS_TOKEN_KEY, cachedAccessToken);
+        } else {
+          localStorage.removeItem(STORAGE_ACCESS_TOKEN_KEY);
+        }
+      }
       return { user: result.user, accessToken: cachedAccessToken };
     } catch (error: any) {
       console.error('Google Sign-in failed:', error);
@@ -231,6 +239,9 @@ export const authService = {
   async signOut(): Promise<void> {
     await signOut(auth);
     cachedAccessToken = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_ACCESS_TOKEN_KEY);
+    }
   },
 
   /**
@@ -245,14 +256,24 @@ export const authService = {
    * Retrieve the current OAuth access token (for Google Workspace APIs)
    */
   getAccessToken(): string | null {
+    if (!cachedAccessToken && typeof window !== 'undefined') {
+      cachedAccessToken = localStorage.getItem(STORAGE_ACCESS_TOKEN_KEY);
+    }
     return cachedAccessToken;
   },
 
   /**
-   * Set or update the in-memory access token
+   * Set or update the access token
    */
   setAccessToken(token: string | null): void {
     cachedAccessToken = token;
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem(STORAGE_ACCESS_TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(STORAGE_ACCESS_TOKEN_KEY);
+      }
+    }
   }
 };
 
@@ -265,19 +286,25 @@ export const initAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        if (onAuthSuccess) onAuthSuccess(user, null);
+      if (!cachedAccessToken && typeof window !== 'undefined') {
+        cachedAccessToken = localStorage.getItem(STORAGE_ACCESS_TOKEN_KEY);
       }
+      if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
     } else {
       cachedAccessToken = null;
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_ACCESS_TOKEN_KEY);
+      }
       if (onAuthFailure) onAuthFailure();
     }
   });
 };
 
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string | null } | null> => {
+  return authService.signInWithGoogle();
+};
+
+export const signInWithGoogle = async (): Promise<{ user: User; accessToken: string | null }> => {
   return authService.signInWithGoogle();
 };
 
@@ -290,6 +317,10 @@ export const setAccessToken = (token: string | null) => {
 };
 
 export const logout = async () => {
+  return authService.signOut();
+};
+
+export const signOutUser = async () => {
   return authService.signOut();
 };
 

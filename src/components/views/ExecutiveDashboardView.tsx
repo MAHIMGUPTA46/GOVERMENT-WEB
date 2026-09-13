@@ -11,7 +11,8 @@ import {
   Sparkles,
   ExternalLink,
   ChevronRight,
-  Info
+  Info,
+  MapPin
 } from 'lucide-react';
 import { Project, Alert } from '../../types';
 import { RiskBadge } from '../RiskBadge';
@@ -85,6 +86,13 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
               >
                 <span>View Early Warnings</span>
                 <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onNavigateTab('map')}
+                className="text-[11px] text-blue-200 hover:text-white font-medium flex items-center gap-1 mt-1 cursor-pointer"
+              >
+                <MapPin className="w-3 h-3 text-emerald-400" />
+                <span>Geospatial Map (Kanpur)</span>
               </button>
             </div>
           </div>

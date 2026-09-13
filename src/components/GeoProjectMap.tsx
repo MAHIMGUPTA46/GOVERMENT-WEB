@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Project, RiskLevel } from '../types';
 import { RiskBadge } from './RiskBadge';
 import { DataQualityBadge } from './DataQualityBadge';
+import { LeafletMapView } from './LeafletMapView';
 import { 
   MapPin, 
   Layers, 
@@ -14,7 +15,8 @@ import {
   Maximize2, 
   RotateCcw,
   Sparkles,
-  Layers2
+  Layers2,
+  Navigation
 } from 'lucide-react';
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
 import firebaseConfigData from '../../firebase-applet-config.json';
@@ -28,7 +30,7 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
   const [selectedRiskFilter, setSelectedRiskFilter] = useState<string>('all');
   const [selectedSectorFilter, setSelectedSectorFilter] = useState<string>('all');
   const [activePin, setActivePin] = useState<Project | null>(null);
-  const [mapMode, setMapMode] = useState<'google' | 'atlas'>('google');
+  const [mapMode, setMapMode] = useState<'leaflet' | 'google' | 'atlas'>('leaflet');
   const [mapTypeId, setMapTypeId] = useState<'roadmap' | 'satellite' | 'hybrid' | 'terrain'>('roadmap');
 
   const mapsApiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || (firebaseConfigData as any).apiKey || '';
@@ -100,24 +102,36 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
           <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-blue-700" />
             Pan-India Infrastructure Spatial Risk Atlas
-            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold">
-              <Globe className="w-3 h-3 text-blue-600" />
-              Google Maps Platform
+            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+              <Navigation className="w-3 h-3 text-emerald-600" />
+              Leaflet & OpenStreetMap Live
             </span>
           </h3>
           <p className="text-xs text-slate-500">
-            Real-time geospatial tracking of {projects.length} major infrastructure projects with predictive risk markers
+            Real-time geospatial tracking of {projects.length} major infrastructure projects with interactive risk markers
           </p>
         </div>
 
         {/* Action Controls & Filters */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {/* View mode toggle */}
+          {/* View mode toggle: Leaflet (OpenStreetMap), Google Maps, Vector Atlas */}
           <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs">
             <button
               type="button"
+              onClick={() => setMapMode('leaflet')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-colors cursor-pointer ${
+                mapMode === 'leaflet'
+                  ? 'bg-blue-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              <span>Leaflet (OSM)</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setMapMode('google')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-colors ${
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-colors cursor-pointer ${
                 mapMode === 'google'
                   ? 'bg-blue-700 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -129,7 +143,7 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
             <button
               type="button"
               onClick={() => setMapMode('atlas')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-colors ${
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-colors cursor-pointer ${
                 mapMode === 'atlas'
                   ? 'bg-blue-700 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -185,14 +199,26 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
         {/* Map Display Viewport */}
         <div className="lg:col-span-8 bg-slate-950 relative min-h-[520px] flex items-center justify-center overflow-hidden">
-          {mapMode === 'google' && mapsApiKey ? (
+          {mapMode === 'leaflet' ? (
+            /* Leaflet OpenStreetMap View with Kanpur Center [26.4499, 80.3319] */
+            <div className="w-full h-[520px] relative">
+              <LeafletMapView
+                projects={filtered}
+                activeProject={activePin}
+                onSelectProject={(proj) => setActivePin(proj)}
+                onOpenDossier={(projId) => onSelectProject(projId)}
+                center={[26.4499, 80.3319]}
+                zoom={6}
+              />
+            </div>
+          ) : mapMode === 'google' && mapsApiKey ? (
             <div className="w-full h-[520px] relative">
               <APIProvider apiKey={mapsApiKey}>
                 <Map
                   id="pan-india-google-map"
                   mapId="DEMO_MAP_ID"
-                  defaultCenter={{ lat: 21.7679, lng: 78.8718 }}
-                  defaultZoom={5}
+                  defaultCenter={{ lat: 26.4499, lng: 80.3319 }}
+                  defaultZoom={6}
                   minZoom={3}
                   maxZoom={18}
                   mapTypeId={mapTypeId}
@@ -258,15 +284,14 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
                       headerContent={
                         <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                           <span className="font-mono text-blue-700">[{activePin.projectCode}]</span>
-                          <span className="truncate max-w-[200px]">{activePin.name}</span>
+                          <span className="truncate max-w-[180px]">{activePin.name}</span>
                         </div>
                       }
                     >
-                      <div className="p-1 space-y-2 text-xs text-slate-700 max-w-xs">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-slate-500">{activePin.sector}</span>
-                          <RiskBadge level={activePin.riskLevel} score={activePin.riskScore} size="sm" />
-                        </div>
+                      <div className="p-1 space-y-2 text-xs max-w-[240px]">
+                        <p className="text-slate-600 text-[11px] leading-tight">
+                          {activePin.implementingAgency} · {activePin.state}
+                        </p>
                         <div className="grid grid-cols-2 gap-1 bg-slate-50 p-1.5 rounded border border-slate-200 text-[11px]">
                           <div>
                             <span className="text-slate-400 text-[9px] block uppercase">Cost Escalation</span>
@@ -355,7 +380,7 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
           )}
 
           {/* Bottom Floating Legend */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/90 backdrop-blur-xs px-3 py-2 rounded-lg border border-slate-800 shadow-md">
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/90 backdrop-blur-xs px-3 py-2 rounded-lg border border-slate-800 shadow-md pointer-events-none">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-600 ring-2 ring-rose-900" />
@@ -451,7 +476,7 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
                 type="button"
                 id="btn-open-dossier"
                 onClick={() => onSelectProject(activePin.id)}
-                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <span>Open Full Analytical Dossier</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -464,15 +489,21 @@ export const GeoProjectMap: React.FC<GeoProjectMapProps> = ({ projects, onSelect
               <p className="text-[11px] text-slate-400 max-w-xs">
                 Click any interactive marker on the map to inspect project spatial coordinates, cost variance, delays, and predictive drivers.
               </p>
+              <div className="mt-4 p-3 bg-blue-50/60 rounded-lg border border-blue-100 text-left w-full text-xs text-blue-900">
+                <span className="font-bold flex items-center gap-1.5 text-blue-800 mb-1">
+                  <Navigation className="w-3.5 h-3.5" /> OpenStreetMap Quick Tip
+                </span>
+                Default center set to Kanpur coords (26.4499°N, 80.3319°E). Click "Focus Kanpur" to inspect the Kanpur Metro Rail Phase 1 project.
+              </div>
             </div>
           )}
 
           <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
             <span className="flex items-center gap-1">
-              <Globe className="w-3 h-3 text-blue-600" />
-              Google Maps Platform
+              <Navigation className="w-3 h-3 text-emerald-600" />
+              OpenStreetMap / Leaflet Engine
             </span>
-            <span>WGS-84 Geospatial Datum</span>
+            <span>WGS-84 Datum</span>
           </div>
         </div>
       </div>

@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'map' as NavTab,
       label: 'Geographic Risk Map',
       icon: MapPin,
-      description: 'Google Maps Spatial Risk Atlas',
+      description: 'Leaflet (OSM) & Spatial Risk Atlas',
     },
     {
       id: 'assistant' as NavTab,
