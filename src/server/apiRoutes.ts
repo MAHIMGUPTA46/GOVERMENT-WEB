@@ -9,6 +9,13 @@ import {
 } from '../services/databaseSeeder';
 import { DEMO_USERS, PORTFOLIO_SUMMARY } from '../data/mockData';
 import { Project, Alert, Intervention } from '../types';
+import { 
+  realtimeManager, 
+  generateRealtimeToken, 
+  verifyRealtimeToken, 
+  RealtimeEvent, 
+  RealtimeUser 
+} from './realtimeService';
 
 export const apiRouter = Router();
 
@@ -399,6 +406,15 @@ apiRouter.post('/alerts/:id/acknowledge', (req: Request, res: Response) => {
     details: `Acknowledged alert ${alert.id} for project ${alert.projectCode}`
   });
 
+  realtimeManager.broadcast_to_all_authorized({
+    event_id: `evt_${Date.now()}_alert_ack`,
+    event_type: 'alert.status_changed',
+    timestamp: new Date().toISOString(),
+    entity_type: 'alert',
+    entity_id: alert.id,
+    payload: { alert_id: alert.id, status: alert.status, assignedTo: alert.assignedTo }
+  });
+
   res.json(alert);
 });
 
@@ -427,6 +443,15 @@ apiRouter.post('/interventions', (req: Request, res: Response) => {
     details: `Initiated intervention for project ${newIntv.projectCode}: ${newIntv.recommendedAction}`
   });
 
+  realtimeManager.broadcast_to_all_authorized({
+    event_id: `evt_${Date.now()}_intv_created`,
+    event_type: 'intervention.updated',
+    timestamp: new Date().toISOString(),
+    entity_type: 'intervention',
+    entity_id: newIntv.id,
+    payload: newIntv
+  });
+
   res.status(201).json(newIntv);
 });
 
@@ -435,6 +460,16 @@ apiRouter.put('/interventions/:id', (req: Request, res: Response) => {
   if (idx === -1) return res.status(404).json({ error: 'Intervention not found' });
 
   dbInterventions[idx] = { ...dbInterventions[idx], ...req.body };
+
+  realtimeManager.broadcast_to_all_authorized({
+    event_id: `evt_${Date.now()}_intv_updated`,
+    event_type: 'intervention.updated',
+    timestamp: new Date().toISOString(),
+    entity_type: 'intervention',
+    entity_id: dbInterventions[idx].id,
+    payload: dbInterventions[idx]
+  });
+
   res.json(dbInterventions[idx]);
 });
 
@@ -467,4 +502,66 @@ apiRouter.get('/data-quality/summary', (req: Request, res: Response) => {
       statutoryClearanceAuditTrail: 91.8
     }
   });
+});
+
+// -------------------------------------------------------------
+// 9. Real-Time Endpoints (WebSocket Token, SSE Fallback & Broadcast)
+// -------------------------------------------------------------
+apiRouter.post('/realtime/token', (req: Request, res: Response) => {
+  const { userId, role, ministryId, ministry } = req.body;
+  const user: RealtimeUser = {
+    userId: userId || 'u-guest',
+    role: role || 'monitoring_officer',
+    ministryId,
+    ministry,
+    permissions: ['read:dashboard', 'read:projects', 'read:alerts', 'read:interventions']
+  };
+
+  const token = generateRealtimeToken(user);
+  res.json({
+    token,
+    tokenType: 'bearer',
+    expiresIn: 300,
+    wsEndpoint: '/api/v1/realtime/ws',
+    sseEndpoint: '/api/v1/realtime/events'
+  });
+});
+
+apiRouter.get('/realtime/events', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (res.flushHeaders) res.flushHeaders();
+
+  const token = req.query.token as string;
+  const verified = token ? verifyRealtimeToken(token) : null;
+  const user: RealtimeUser = verified || {
+    userId: 'u-guest',
+    role: 'viewer',
+    ministry: 'MoSPI',
+    permissions: ['read:dashboard', 'read:projects', 'read:alerts']
+  };
+
+  realtimeManager.registerSseClient(res, user);
+});
+
+apiRouter.post('/realtime/broadcast', (req: Request, res: Response) => {
+  const { event_type, entity_type, entity_id, ministry_id, payload } = req.body;
+  const event: RealtimeEvent = {
+    event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    event_type: event_type || 'project.updated',
+    timestamp: new Date().toISOString(),
+    entity_type: entity_type || 'project',
+    entity_id: entity_id || 'proj-general',
+    ministry_id,
+    payload: payload || {}
+  };
+
+  realtimeManager.broadcast_to_all_authorized(event);
+  res.json({ success: true, event });
+});
+
+apiRouter.get('/realtime/stats', (req: Request, res: Response) => {
+  res.json(realtimeManager.getStats());
 });

@@ -121,6 +121,10 @@ export async function saveProjectToFirestore(project: Project): Promise<void> {
  */
 export async function saveProjectsBatchToFirestore(projects: Project[]): Promise<void> {
   if (!projects || projects.length === 0) return;
+  if (!auth.currentUser) {
+    // Guest session: records preserved in local state
+    return;
+  }
   try {
     let batch = writeBatch(db);
     let opCount = 0;

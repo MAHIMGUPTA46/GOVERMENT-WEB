@@ -264,7 +264,39 @@ export async function updateLinkedProjectAndInterventionTx(
     );
   }
 
-  const userId = getAuthenticatedUserId('updateLinkedProjectAndInterventionTx');
+  const user = auth.currentUser;
+  if (!user) {
+    // Unauthenticated/guest session: perform deterministic local risk calculation
+    const previousRiskScore = typeof projectFallback?.riskScore === 'number' 
+      ? projectFallback.riskScore 
+      : 50;
+
+    let finalRiskScore: number;
+    if (typeof newRiskScore === 'number') {
+      finalRiskScore = Math.max(0, Math.min(100, Math.round(newRiskScore)));
+    } else if (typeof riskScoreDelta === 'number') {
+      finalRiskScore = Math.max(0, Math.min(100, Math.round(previousRiskScore + riskScoreDelta)));
+    } else if (newInterventionStatus === 'resolved') {
+      finalRiskScore = Math.max(0, Math.min(100, previousRiskScore - 10));
+    } else if (newInterventionStatus === 'action_initiated') {
+      finalRiskScore = Math.max(0, Math.min(100, previousRiskScore - 4));
+    } else {
+      finalRiskScore = previousRiskScore;
+    }
+
+    return {
+      success: true,
+      projectId,
+      interventionId,
+      previousRiskScore,
+      updatedRiskScore: finalRiskScore,
+      updatedRiskLevel: calculateRiskLevel(finalRiskScore),
+      interventionStatus: newInterventionStatus,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  const userId = user.uid;
   const projectRef = doc(db, 'projects', projectId);
   const interventionRef = doc(db, 'interventions', interventionId);
   const auditLogRef = doc(collection(db, 'audit_logs'));
@@ -460,7 +492,9 @@ export async function batchSyncInterventions(interventions: Intervention[]): Pro
     return { count: 0 };
   }
 
-  const userId = getAuthenticatedUserId('batchSyncInterventions');
+  const user = auth.currentUser;
+  if (!user) return { count: interventions.length };
+  const userId = user.uid;
   const now = new Date().toISOString();
   const BATCH_SIZE = 500;
 
@@ -504,7 +538,8 @@ export async function batchUpdateInterventionStatuses(
 ): Promise<{ count: number }> {
   if (!updates || updates.length === 0) return { count: 0 };
 
-  getAuthenticatedUserId('batchUpdateInterventionStatuses');
+  const user = auth.currentUser;
+  if (!user) return { count: updates.length };
   const now = new Date().toISOString();
   const BATCH_SIZE = 500;
 
@@ -547,7 +582,8 @@ export async function batchUpdateInterventionStatuses(
 export async function batchDeleteInterventions(interventionIds: string[]): Promise<{ count: number }> {
   if (!interventionIds || interventionIds.length === 0) return { count: 0 };
 
-  getAuthenticatedUserId('batchDeleteInterventions');
+  const user = auth.currentUser;
+  if (!user) return { count: interventionIds.length };
   const BATCH_SIZE = 500;
 
   try {
@@ -578,7 +614,9 @@ export async function batchDeleteInterventions(interventionIds: string[]): Promi
 export async function batchSyncAlerts(alerts: Alert[]): Promise<{ count: number }> {
   if (!alerts || alerts.length === 0) return { count: 0 };
 
-  const userId = getAuthenticatedUserId('batchSyncAlerts');
+  const user = auth.currentUser;
+  if (!user) return { count: alerts.length };
+  const userId = user.uid;
   const BATCH_SIZE = 500;
 
   try {
@@ -617,8 +655,14 @@ export async function batchSyncAlerts(alerts: Alert[]): Promise<{ count: number 
  */
 export async function syncInterventionToFirestore(intervention: Intervention): Promise<void> {
   const path = `interventions/${intervention.id}`;
+  const user = auth.currentUser;
+  if (!user) {
+    // Guest or demo session: silently persist in UI memory without calling Firestore
+    return;
+  }
+
   try {
-    const userId = getAuthenticatedUserId('syncInterventionToFirestore');
+    const userId = user.uid;
 
     if (!intervention.id || !intervention.projectId) {
       throw new FirestoreTransactionError(

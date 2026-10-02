@@ -89,12 +89,30 @@ export const GoogleSheetsTab: React.FC<GoogleSheetsTabProps> = ({
 
   const loadDriveSpreadsheets = async () => {
     if (!accessToken) return;
+    if (accessToken === 'demo-workspace-token') {
+      setDriveSheets([
+        {
+          id: 'demo-sheet-1',
+          name: 'MoSPI Central Sector Projects Appraisal - August 2026',
+          modifiedTime: new Date().toISOString(),
+          webViewLink: 'https://docs.google.com/spreadsheets/d/demo-sheet-1/edit',
+        },
+        {
+          id: 'demo-sheet-2',
+          name: 'PM GatiShakti NMP Inter-Ministerial Bottlenecks Ledger',
+          modifiedTime: new Date(Date.now() - 86400000).toISOString(),
+          webViewLink: 'https://docs.google.com/spreadsheets/d/demo-sheet-2/edit',
+        },
+      ]);
+      return;
+    }
+
     try {
       setIsLoadingSheets(true);
       const files = await listGoogleSpreadsheets(accessToken);
       setDriveSheets(files);
     } catch (err: any) {
-      console.error('Failed to list sheets:', err);
+      console.warn('Failed to list drive sheets:', err);
     } finally {
       setIsLoadingSheets(false);
     }
@@ -108,6 +126,33 @@ export const GoogleSheetsTab: React.FC<GoogleSheetsTabProps> = ({
     const cleanId = extractSpreadsheetId(spreadsheetIdOrUrl);
     if (!cleanId) {
       onShowNotification('error', 'Please enter a valid Google Spreadsheet URL or ID.');
+      return;
+    }
+
+    if (accessToken === 'demo-workspace-token' || cleanId.startsWith('demo-sheet')) {
+      const mockMeta: GoogleSheetMetadata = {
+        spreadsheetId: cleanId,
+        title: cleanId === 'demo-sheet-2' 
+          ? 'PM GatiShakti NMP Inter-Ministerial Bottlenecks Ledger'
+          : 'MoSPI Central Sector Projects Appraisal - August 2026',
+        sheets: [
+          { sheetId: 0, title: 'Active_Projects', rowCount: 6, columnCount: 16 },
+          { sheetId: 1, title: 'Summary_Metrics', rowCount: 10, columnCount: 5 }
+        ]
+      };
+      setSelectedSheetMeta(mockMeta);
+      setSelectedTabTitle('Active_Projects');
+
+      const mockRows = [
+        ['project_code', 'project_name', 'ministry', 'sector', 'agency', 'state', 'original_cost', 'revised_cost', 'delay_months', 'physical_progress', 'financial_progress', 'risk_score', 'risk_level'],
+        ['P-8801', 'Dedicated Freight Corridor Phase 3 (Eastern Extension)', 'Ministry of Railways', 'Railways', 'DFCCIL', 'Uttar Pradesh', '8500', '9800', '14', '78.5', '71.2', '62', 'High'],
+        ['P-8802', 'Delhi-Dehradun Expressway Green Highway Corridor', 'Ministry of Road Transport & Highways', 'Road Transport & Highways', 'NHAI', 'Uttarakhand', '11200', '12400', '8', '64.0', '58.0', '48', 'Moderate'],
+        ['P-8803', 'Great Nicobar International Container Transhipment Port', 'Ministry of Ports, Shipping and Waterways', 'Ports & Shipping', 'IPA', 'Andaman & Nicobar Islands', '42000', '45000', '18', '22.0', '19.5', '82', 'Critical'],
+        ['P-8804', 'Kaza Solar-Wind Hybrid Ultra Mega Renewable Park', 'Ministry of New and Renewable Energy', 'Power', 'SECI', 'Himachal Pradesh', '3400', '3400', '0', '35.0', '32.0', '24', 'Low']
+      ];
+      setSheetRows(mockRows);
+      parseSheetRowsToProjects(mockRows);
+      onShowNotification('success', `Loaded demonstration spreadsheet "${mockMeta.title}" (5 projects ready for ingestion)`);
       return;
     }
 
@@ -401,6 +446,18 @@ export const GoogleSheetsTab: React.FC<GoogleSheetsTabProps> = ({
             p.currentCompletionDate,
             p.riskAssessment?.topDrivers?.[0]?.description || 'Normal monitoring profile',
           ]);
+
+          if (accessToken === 'demo-workspace-token') {
+            setTimeout(() => {
+              setLastExportedUrl('https://docs.google.com/spreadsheets/d/demo-sheet-1/edit');
+              setIsExporting(false);
+              onShowNotification(
+                'success',
+                `Export successful! Created demonstration Google Spreadsheet: "${exportTitle}" (${projectsToExport.length} projects)`
+              );
+            }, 500);
+            return;
+          }
 
           const result = await createGoogleSpreadsheet(
             accessToken,

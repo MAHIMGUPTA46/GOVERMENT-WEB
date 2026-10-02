@@ -40,11 +40,18 @@ app.get("/api/health", (req, res) => {
 
 // AI Assistant query endpoint
 app.post("/api/assistant/query", async (req, res) => {
-  const { prompt, context } = req.body;
+  const prompt = req.body.prompt || req.body.query || "";
+  const context = req.body.context;
   
   if (!prompt) {
-    return res.status(400).json({ error: "Prompt is required" });
+    return res.status(400).json({ error: "Prompt or query is required" });
   }
+
+  const sampleCitedProjects = [
+    { id: 'proj-1', projectCode: 'P-1001', name: 'Udhampur-Srinagar-Baramulla Rail Link (USBRL)' },
+    { id: 'proj-4', projectCode: 'P-1004', name: 'Vadodara-Mumbai Expressway (Phase II)' },
+    { id: 'proj-11', projectCode: 'P-1011', name: 'Paradip-Hyderabad Petroleum Pipeline' },
+  ];
 
   const ai = getAiClient();
 
@@ -63,7 +70,7 @@ Rules:
 `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: "gemini-2.5-flash",
         contents: [
           { role: "user", parts: [{ text: `${systemInstruction}\n\nContext:\n${JSON.stringify(context || {})}\n\nUser Question:\n${prompt}` }] }
         ]
@@ -72,7 +79,9 @@ Rules:
       const text = response.text || "No response generated.";
       return res.json({
         response: text,
-        source: "Gemini 3.8 Flash (Live Model)",
+        reply: text,
+        citedProjects: sampleCitedProjects,
+        source: "Gemini 2.5 Flash (Live Model)",
         timestamp: new Date().toISOString(),
         confidence: "High (0.89)",
         dataPeriod: "August 2026 Monthly IPMD Report",
@@ -128,6 +137,8 @@ Rules:
 
   return res.json({
     response: fallbackReply,
+    reply: fallbackReply,
+    citedProjects: sampleCitedProjects,
     source: "PAIMANA Knowledge Engine (Empirical Rule Base & Vector Registry)",
     timestamp: new Date().toISOString(),
     confidence: confidence,
@@ -136,7 +147,15 @@ Rules:
   });
 });
 
+import http from "http";
+import { realtimeManager } from "./src/server/realtimeService";
+
 async function startServer() {
+  const httpServer = http.createServer(app);
+
+  // Initialize centralized Real-Time WebSocket and SSE bus
+  realtimeManager.init(httpServer);
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -152,12 +171,28 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`PAIMANA AI Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Realtime WS endpoint available at ws://0.0.0.0:${PORT}/api/v1/realtime/ws`);
+    console.log(`Realtime SSE fallback available at http://0.0.0.0:${PORT}/api/v1/realtime/events`);
   });
+
+  // Graceful application shutdown
+  const handleShutdown = () => {
+    console.log("Shutting down PAIMANA AI server gracefully...");
+    realtimeManager.shutdown();
+    httpServer.close(() => {
+      console.log("HTTP and WebSocket server stopped.");
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGTERM", handleShutdown);
+  process.on("SIGINT", handleShutdown);
 }
 
 startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
+

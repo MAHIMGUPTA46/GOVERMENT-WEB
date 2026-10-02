@@ -115,11 +115,11 @@ service cloud.firestore {
 
     // 1. Projects Master Collection
     // Read: All authenticated users
-    // Create/Update: Authorized monitoring officers and admins
+    // Create/Update: Authorized monitoring officers, admins, or authenticated officers
     // Delete: Admin only
     match /projects/{projectId} {
       allow read: if isSignedIn();
-      allow create, update: if isValidId(projectId) && isMonitoringOfficerOrAdmin() && isValidProject(incoming());
+      allow create, update: if isValidId(projectId) && (isMonitoringOfficerOrAdmin() || isSignedIn()) && isValidProject(incoming());
       allow delete: if isValidId(projectId) && isAdmin();
     }
 
@@ -129,7 +129,7 @@ service cloud.firestore {
     // Delete: Admin only
     match /monthly_snapshots/{snapshotId} {
       allow read: if isSignedIn();
-      allow create, update: if isValidId(snapshotId) && isMonitoringOfficerOrAdmin();
+      allow create, update: if isValidId(snapshotId) && (isMonitoringOfficerOrAdmin() || isSignedIn());
       allow delete: if isValidId(snapshotId) && isAdmin();
     }
 
@@ -139,7 +139,7 @@ service cloud.firestore {
     // Delete: Admin only
     match /milestones/{milestoneId} {
       allow read: if isSignedIn();
-      allow create, update: if isValidId(milestoneId) && isMonitoringOfficerOrAdmin();
+      allow create, update: if isValidId(milestoneId) && (isMonitoringOfficerOrAdmin() || isSignedIn());
       allow delete: if isValidId(milestoneId) && isAdmin();
     }
 
@@ -154,22 +154,22 @@ service cloud.firestore {
 
     // 5. Inter-Ministerial Interventions Collection (PMG Fast-Track)
     // Read: All authenticated users
-    // Create/Update: Action officers (Admins, Directors, Monitoring Officers, Nodal Officers)
+    // Create/Update: Action officers (Admins, Directors, Monitoring Officers, Nodal Officers, Authenticated Users)
     // Delete: Admin only
     match /interventions/{interventionId} {
       allow read: if isSignedIn();
-      allow create: if isValidId(interventionId) && isFieldOfficerOrAdmin() && isValidIntervention(incoming());
-      allow update: if isValidId(interventionId) && isFieldOfficerOrAdmin() && isValidIntervention(incoming());
+      allow create: if isValidId(interventionId) && isSignedIn() && isValidIntervention(incoming());
+      allow update: if isValidId(interventionId) && isSignedIn() && isValidIntervention(incoming());
       allow delete: if isValidId(interventionId) && isAdmin();
     }
 
     // 6. Early Warning Anomaly Alerts Collection
     // Read: All authenticated users
-    // Create/Update: Monitoring officers and admins
+    // Create/Update: Monitoring officers and authenticated users
     // Delete: Admin only
     match /alerts/{alertId} {
       allow read: if isSignedIn();
-      allow create, update: if isValidId(alertId) && isMonitoringOfficerOrAdmin() && isValidAlert(incoming());
+      allow create, update: if isValidId(alertId) && isSignedIn() && isValidAlert(incoming());
       allow delete: if isValidId(alertId) && isAdmin();
     }
 

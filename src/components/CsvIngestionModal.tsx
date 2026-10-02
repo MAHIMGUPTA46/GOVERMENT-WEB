@@ -51,14 +51,16 @@ export const CsvIngestionModal: React.FC<CsvIngestionModalProps> = ({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [ingestedCount, setIngestedCount] = useState<number>(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
   const handleFileProcess = (file: File) => {
+    setUploadError(null);
     if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-      alert('Please upload a valid CSV file (.csv).');
+      setUploadError('Please upload a valid CSV file (.csv format required).');
       return;
     }
 
@@ -240,6 +242,21 @@ export const CsvIngestionModal: React.FC<CsvIngestionModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6">
           {activeStep === 'upload' && (
             <div className="space-y-6">
+              {uploadError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+                  <span className="font-semibold">{uploadError}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadError(null);
+                    }}
+                    className="text-rose-600 hover:text-rose-900 font-bold ml-2"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               {/* Drag and Drop Zone */}
               <div
                 onDragOver={handleDragOver}

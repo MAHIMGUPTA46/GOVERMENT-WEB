@@ -26,6 +26,8 @@ import {
   updateLinkedProjectAndInterventionTx 
 } from './services/firestoreSync';
 import { runDataQualityCheck } from './utils/dataQualityCheck';
+import { useRealtimeUpdates } from './hooks/useRealtimeUpdates';
+import { authService } from './lib/firebase';
 
 export default function App() {
   // Application State
@@ -35,6 +37,17 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isGoogleConnected, setIsGoogleConnected] = useState<boolean>(() => {
+    return Boolean(authService.getCurrentUser() || authService.getAccessToken());
+  });
+
+  // Track Google Workspace authorization status
+  React.useEffect(() => {
+    const unsub = authService.onAuthStateChanged((user) => {
+      setIsGoogleConnected(Boolean(user || authService.getAccessToken()));
+    });
+    return () => unsub();
+  }, []);
 
   // Interactive local copies of data - run DataQualityCheck on initial projects ingestion
   const [projects, setProjects] = useState<Project[]>(() => runDataQualityCheck(PROJECTS_DATA));
@@ -44,8 +57,57 @@ export default function App() {
   const [isCsvModalOpen, setIsCsvModalOpen] = useState<boolean>(false);
   const [ingestNotification, setIngestNotification] = useState<string | null>(null);
 
-  // Find currently open project if selected
-  const activeProject = projects.find((p) => p.id === selectedProjectId);
+  // Centralized Real-Time WebSocket & SSE event bus subscription
+  useRealtimeUpdates({
+    userId: currentUser.id,
+    role: currentUser.role,
+    onRiskUpdate: (projectId, riskScore, riskLevel) => {
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === projectId || p.projectCode === projectId
+            ? { ...p, riskScore, riskLevel }
+            : p
+        )
+      );
+    },
+    onProjectUpdate: (updatedProject) => {
+      if (!updatedProject.id && !updatedProject.projectCode) return;
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === updatedProject.id || p.projectCode === updatedProject.projectCode
+            ? { ...p, ...updatedProject }
+            : p
+        )
+      );
+    },
+    onAlertCreated: (newAlert) => {
+      setAlerts((prev) => {
+        if (prev.some((a) => a.id === newAlert.id)) return prev;
+        return [newAlert, ...prev];
+      });
+    },
+    onAlertStatusChanged: (alertId, status, assignedTo) => {
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === alertId ? { ...a, status: status as any, assignedTo: assignedTo || a.assignedTo } : a
+        )
+      );
+    },
+    onInterventionUpdated: (updatedIntv) => {
+      setInterventions((prev) => {
+        const exists = prev.some((i) => i.id === updatedIntv.id);
+        if (exists) {
+          return prev.map((i) => (i.id === updatedIntv.id ? { ...i, ...updatedIntv } : i));
+        }
+        return [updatedIntv, ...prev];
+      });
+    },
+  });
+
+  // Find currently open project if selected (matches either synthetic id or statutory projectCode)
+  const activeProject = projects.find(
+    (p) => p.id === selectedProjectId || p.projectCode === selectedProjectId
+  );
 
   // Handlers
   const handleSelectProject = (id: string) => {
@@ -220,6 +282,11 @@ export default function App() {
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onSearch={setSearchTerm}
         searchTerm={searchTerm}
+        onOpenGoogleWorkspace={() => {
+          setSelectedProjectId(null);
+          setCurrentTab('workspace');
+        }}
+        isGoogleConnected={isGoogleConnected}
       />
 
       {/* Main Layout Container */}

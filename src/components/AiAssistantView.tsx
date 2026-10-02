@@ -99,6 +99,7 @@ How may I assist your policy review today?`,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          prompt: textToSend,
           query: textToSend,
           context: {
             reportingMonth,
@@ -120,7 +121,7 @@ How may I assist your policy review today?`,
       const assistantMsg: Message = {
         id: `ast-${Date.now()}`,
         sender: 'assistant',
-        text: data.reply,
+        text: data.reply || data.response || 'No response generated.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         citedProjects: data.citedProjects || [],
         confidenceScore: data.confidenceScore || 0.92,

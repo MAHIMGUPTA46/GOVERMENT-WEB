@@ -47,6 +47,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [newInterventionTitle, setNewInterventionTitle] = useState('');
   const [newInterventionType, setNewInterventionType] = useState('Inter-Ministerial PMG');
   const [newInterventionDesc, setNewInterventionDesc] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
 
   const costEscalationCr = project.revisedCost - project.originalCost;
 
@@ -104,13 +105,19 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           <button
             onClick={() => {
               const text = `PAIMANA Dossier: [${project.projectCode}] ${project.name} | Risk Score: ${project.riskScore}/100`;
-              navigator.clipboard.writeText(text);
-              alert('Dossier executive link copied to clipboard.');
+              navigator.clipboard?.writeText(text);
+              setShareCopied(true);
+              setTimeout(() => setShareCopied(false), 2000);
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-medium text-xs rounded-lg transition-colors shadow-2xs"
+            title="Copy project dossier summary"
           >
-            <Share2 className="w-3.5 h-3.5 text-slate-500" />
-            <span>Share</span>
+            {shareCopied ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Share2 className="w-3.5 h-3.5 text-slate-500" />
+            )}
+            <span>{shareCopied ? 'Copied Link' : 'Share'}</span>
           </button>
 
           <button
