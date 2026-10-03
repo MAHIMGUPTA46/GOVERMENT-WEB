@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AlertTriangle, 
   ShieldAlert, 
@@ -7,9 +7,13 @@ import {
   ArrowRight, 
   ExternalLink,
   Clock,
-  Building2
+  Building2,
+  Volume2,
+  VolumeX,
+  Sparkles
 } from 'lucide-react';
 import { Alert } from '../../types';
+import { speechSynthesisService, AudioAlertState } from '../../services/speechSynthesisService';
 
 interface AlertsWorklistViewProps {
   alerts: Alert[];
@@ -24,6 +28,27 @@ export const AlertsWorklistView: React.FC<AlertsWorklistViewProps> = ({
 }) => {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [audioState, setAudioState] = useState<AudioAlertState>(() => speechSynthesisService.getState());
+
+  useEffect(() => {
+    const unsub = speechSynthesisService.subscribe(setAudioState);
+    return () => unsub();
+  }, []);
+
+  const handleSpeakAlert = (alert: Alert) => {
+    speechSynthesisService.speakAlert(
+      {
+        id: alert.id,
+        projectCode: alert.projectCode,
+        projectName: alert.projectName,
+        title: alert.title,
+        severity: alert.severity,
+        riskScore: alert.severity === 'critical' ? 88 : 72,
+        description: alert.triggerValue || alert.description,
+      },
+      { force: true }
+    );
+  };
 
   const filtered = alerts.filter((a) => {
     if (severityFilter !== 'all' && a.severity !== severityFilter) return false;
@@ -33,6 +58,64 @@ export const AlertsWorklistView: React.FC<AlertsWorklistViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Voice Notification Banner */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-xl p-4 sm:p-5 shadow-sm border border-blue-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-800/60 border border-blue-700/60 flex items-center justify-center shrink-0 text-amber-300">
+            {audioState.enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                Speech Synthesis Audio Alert System
+              </h3>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                audioState.enabled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' : 'bg-slate-700 text-slate-300'
+              }`}>
+                {audioState.enabled ? (audioState.isSpeaking ? 'Speaking Alert...' : 'Active') : 'Muted'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Automatically vocalizes an audible briefing when critical infrastructure alerts (risk score &gt; 80) trigger in the background.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => speechSynthesisService.testAudioSpeech()}
+            className="px-3 py-1.5 bg-blue-800 hover:bg-blue-700 text-amber-300 text-xs font-semibold rounded-lg border border-blue-700/80 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            title="Test browser speech synthesis audio playback"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Test Voice Briefing</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => speechSynthesisService.toggleEnabled()}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+              audioState.enabled
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
+            }`}
+          >
+            {audioState.enabled ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5" />
+                <span>Mute Audio</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Enable Voice</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -132,6 +215,16 @@ export const AlertsWorklistView: React.FC<AlertsWorklistViewProps> = ({
 
                   {/* Actions */}
                   <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleSpeakAlert(alert)}
+                      className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium text-xs rounded-lg border border-slate-200 transition-colors flex items-center gap-1 shadow-2xs"
+                      title="Play browser speech synthesis voice summary for this alert"
+                    >
+                      <Volume2 className="w-3.5 h-3.5 text-blue-700" />
+                      <span>Listen Brief</span>
+                    </button>
+
                     <button
                       onClick={() => onSelectProject(alert.projectId)}
                       className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-medium text-xs rounded-lg transition-colors flex items-center gap-1"

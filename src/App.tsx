@@ -28,10 +28,49 @@ import {
 import { runDataQualityCheck } from './utils/dataQualityCheck';
 import { useRealtimeUpdates } from './hooks/useRealtimeUpdates';
 import { authService } from './lib/firebase';
+import { speechSynthesisService } from './services/speechSynthesisService';
+import { AuthDashboard } from './components/auth/AuthDashboard';
 
 export default function App() {
+  // Authentication & Session Guard for Whole Project
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    try {
+      const stored = localStorage.getItem('paimana_authenticated_user_session');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {}
+    return DEMO_USERS[0];
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('paimana_authenticated_user_session');
+      return Boolean(stored);
+    } catch {
+      return false;
+    }
+  });
+
+  const handleLoginSuccess = (user: User) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem('paimana_authenticated_user_session', JSON.stringify(user));
+    } catch {}
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await authService.signOut();
+    } catch {}
+    setIsAuthenticated(false);
+    try {
+      localStorage.removeItem('paimana_authenticated_user_session');
+    } catch {}
+  };
+
   // Application State
-  const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]);
   const [reportingMonth, setReportingMonth] = useState('August 2026');
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -48,6 +87,17 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  const handleTriggerGoogleSignIn = async () => {
+    try {
+      const res = await authService.signInWithGoogle();
+      if (res?.user) {
+        setIsGoogleConnected(true);
+      }
+    } catch (e) {
+      console.warn('Google sign-in error:', e);
+    }
+  };
 
   // Interactive local copies of data - run DataQualityCheck on initial projects ingestion
   const [projects, setProjects] = useState<Project[]>(() => runDataQualityCheck(PROJECTS_DATA));
@@ -69,6 +119,20 @@ export default function App() {
             : p
         )
       );
+
+      // Browser-based audio notification summary when critical infrastructure alert / risk score > 80 is triggered
+      if (riskScore > 80) {
+        const targetProj = projects.find((p) => p.id === projectId || p.projectCode === projectId);
+        speechSynthesisService.speakAlert({
+          id: `risk-threshold-${projectId}-${Date.now()}`,
+          projectCode: targetProj?.projectCode,
+          projectName: targetProj?.name,
+          title: 'Critical Risk Threshold Exceeded',
+          riskScore,
+          severity: 'critical',
+          description: `Machine learning risk engine updated score to ${riskScore}. Priority cabinet review recommended.`,
+        });
+      }
     },
     onProjectUpdate: (updatedProject) => {
       if (!updatedProject.id && !updatedProject.projectCode) return;
@@ -85,6 +149,21 @@ export default function App() {
         if (prev.some((a) => a.id === newAlert.id)) return prev;
         return [newAlert, ...prev];
       });
+
+      // Browser-based speech synthesis audio notification for critical infrastructure alerts
+      const targetProj = projects.find((p) => p.id === newAlert.projectId || p.projectCode === newAlert.projectId);
+      const riskScore = targetProj?.riskScore ?? (newAlert.severity === 'critical' ? 88 : 70);
+      if (newAlert.severity === 'critical' || riskScore > 80) {
+        speechSynthesisService.speakAlert({
+          id: newAlert.id,
+          projectCode: targetProj?.projectCode,
+          projectName: newAlert.projectName || targetProj?.name,
+          title: newAlert.title,
+          riskScore,
+          severity: newAlert.severity,
+          description: newAlert.triggerValue || targetProj?.description,
+        });
+      }
     },
     onAlertStatusChanged: (alertId, status, assignedTo) => {
       setAlerts((prev) =>
@@ -264,12 +343,22 @@ export default function App() {
     }, 7000);
   };
 
+  // Full Login Dashboard Guard for the Whole Project
+  if (!isAuthenticated) {
+    return <AuthDashboard onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#F4F6F9] flex flex-col font-sans text-slate-800">
       {/* Top Banner & Header */}
       <TopNav
         currentUser={currentUser}
-        onSelectUser={setCurrentUser}
+        onSelectUser={(user) => {
+          setCurrentUser(user);
+          try {
+            localStorage.setItem('paimana_authenticated_user_session', JSON.stringify(user));
+          } catch {}
+        }}
         reportingMonth={reportingMonth}
         onChangeReportingMonth={setReportingMonth}
         activeAlerts={alerts}
@@ -286,6 +375,8 @@ export default function App() {
           setSelectedProjectId(null);
           setCurrentTab('workspace');
         }}
+        onTriggerGoogleSignIn={handleTriggerGoogleSignIn}
+        onSignOut={handleSignOut}
         isGoogleConnected={isGoogleConnected}
       />
 
@@ -418,6 +509,7 @@ export default function App() {
                 <ReportsView
                   projects={projects}
                   reportingMonth={reportingMonth}
+                  onSelectProject={handleSelectProject}
                 />
               )}
 

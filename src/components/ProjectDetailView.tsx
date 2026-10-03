@@ -27,6 +27,8 @@ import { DataQualityBadge } from './DataQualityBadge';
 import { CostComparisonChart } from './charts/CostComparisonChart';
 import { MonthlyProgressChart } from './charts/MonthlyProgressChart';
 import { ShapWaterfallChart } from './charts/ShapWaterfallChart';
+import { generateProjectPdfBrief } from '../utils/generatePdfBrief';
+import { ProjectTimeline } from './ProjectTimeline';
 
 interface ProjectDetailViewProps {
   project: Project;
@@ -40,7 +42,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   onAddIntervention,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'progress' | 'risk_shap' | 'milestones' | 'interventions' | 'audit'
+    'overview' | 'timeline' | 'progress' | 'risk_shap' | 'milestones' | 'interventions' | 'audit'
   >('overview');
 
   const [showInterventionModal, setShowInterventionModal] = useState(false);
@@ -93,6 +95,26 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => generateProjectPdfBrief(project, 'August 2026')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:border-blue-300 text-blue-800 font-semibold text-xs rounded-lg transition-colors shadow-2xs"
+            title="Generate and download formatted PDF Brief via jsPDF"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-700" />
+            <span>Generate PDF Brief</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => generateProjectPdfBrief(project, 'August 2026')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-900 font-semibold text-xs rounded-lg transition-colors shadow-2xs cursor-pointer"
+            title="Generate formatted, printer-friendly summary of this project's current status and risk profile via jsPDF"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-700" />
+            <span>Generate PDF Brief</span>
+          </button>
+
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-medium text-xs rounded-lg transition-colors shadow-2xs"
@@ -307,6 +329,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       <div className="flex items-center gap-2 border-b border-slate-200 pb-px overflow-x-auto text-xs no-print">
         {[
           { id: 'overview', label: 'Executive Dossier & Narrative' },
+          { id: 'timeline', label: 'Project Timeline & Track' },
           { id: 'progress', label: 'S-Curve Progress & Capital' },
           { id: 'risk_shap', label: 'Explainable AI Risk Engine (SHAP)' },
           { id: 'milestones', label: `Milestones (${project.milestones.length})` },
@@ -445,6 +468,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Project Timeline & Key Milestones Visual Progress Track */}
+          <ProjectTimeline project={project} />
+        </div>
+      )}
+
+      {/* Tab: Dedicated Project Timeline & Progress Track */}
+      {activeTab === 'timeline' && (
+        <div className="space-y-6">
+          <ProjectTimeline project={project} />
         </div>
       )}
 
@@ -532,9 +565,12 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         </div>
       )}
 
-      {/* Tab 4: Milestones Timeline */}
+      {/* Tab: Milestones & Lifecycle Timeline */}
       {activeTab === 'milestones' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="space-y-6">
+          <ProjectTimeline project={project} />
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900">
               Contractual Key Milestones & Completion Schedule
@@ -604,6 +640,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             })}
           </div>
         </div>
+      </div>
       )}
 
       {/* Tab 5: Interventions */}
