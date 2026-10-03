@@ -21,6 +21,7 @@ import { DataQualityBadge } from '../DataQualityBadge';
 import { CostComparisonChart } from '../charts/CostComparisonChart';
 import { RiskMatrixScatter } from '../charts/RiskMatrixScatter';
 import { SectorRiskChart } from '../charts/SectorRiskChart';
+import { ProjectKpiTrendsCard } from '../charts/ProjectKpiTrendsCard';
 
 interface ExecutiveDashboardViewProps {
   projects: Project[];
@@ -209,6 +210,12 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Project KPI Trends: 6-Month Historical Risk Trajectory for Top 5 Highest-Risk Projects */}
+      <ProjectKpiTrendsCard
+        projects={projects}
+        onSelectProject={onSelectProject}
+      />
 
       {/* Primary Analytics Visuals Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
