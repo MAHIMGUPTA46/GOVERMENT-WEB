@@ -18,7 +18,8 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldAlert,
-  Info
+  Info,
+  Cpu
 } from 'lucide-react';
 import { Project, Intervention } from '../types';
 import { RiskBadge } from './RiskBadge';
@@ -29,6 +30,9 @@ import { MonthlyProgressChart } from './charts/MonthlyProgressChart';
 import { ShapWaterfallChart } from './charts/ShapWaterfallChart';
 import { generateProjectPdfBrief } from '../utils/generatePdfBrief';
 import { ProjectTimeline } from './ProjectTimeline';
+import { MomRiskShiftIndicator } from './MomRiskShiftIndicator';
+import { SiteDigitalTwinView } from './SiteDigitalTwinView';
+import { PhaseBudgetVsActualChart } from './charts/PhaseBudgetVsActualChart';
 
 interface ProjectDetailViewProps {
   project: Project;
@@ -42,7 +46,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   onAddIntervention,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'timeline' | 'progress' | 'risk_shap' | 'milestones' | 'interventions' | 'audit'
+    'overview' | 'digital_twin' | 'timeline' | 'progress' | 'risk_shap' | 'milestones' | 'interventions' | 'audit'
   >('overview');
 
   const [showInterventionModal, setShowInterventionModal] = useState(false);
@@ -143,6 +147,19 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           </button>
 
           <button
+            type="button"
+            onClick={() => setActiveTab('digital_twin')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs rounded-lg transition-colors shadow-2xs border ${
+              activeTab === 'digital_twin'
+                ? 'bg-blue-900 text-white border-blue-900 ring-2 ring-blue-300'
+                : 'bg-slate-900 hover:bg-slate-800 text-white border-slate-900'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5 text-blue-400" />
+            <span>Site Digital Twin</span>
+          </button>
+
+          <button
             onClick={() => setShowInterventionModal(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs rounded-lg transition-colors shadow-xs"
           >
@@ -197,7 +214,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           </div>
 
           {/* Quick Critical Metric Pillar */}
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-xl shrink-0">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-xl shrink-0">
             <div className="text-right">
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
                 Cost Escalation
@@ -221,6 +238,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 Anticipated: {project.anticipatedCompletionDate.substring(0, 7)}
               </span>
             </div>
+            <div className="h-8 w-px bg-slate-200 hidden sm:block" />
+            {/* Month-over-Month Risk Shift Indicator */}
+            <MomRiskShiftIndicator project={project} variant="compact" />
           </div>
         </div>
       </div>
@@ -329,6 +349,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       <div className="flex items-center gap-2 border-b border-slate-200 pb-px overflow-x-auto text-xs no-print">
         {[
           { id: 'overview', label: 'Executive Dossier & Narrative' },
+          { id: 'digital_twin', label: 'Site Digital Twin (2D / Schematics)' },
           { id: 'timeline', label: 'Project Timeline & Track' },
           { id: 'progress', label: 'S-Curve Progress & Capital' },
           { id: 'risk_shap', label: 'Explainable AI Risk Engine (SHAP)' },
@@ -353,6 +374,37 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       {/* Tab 1: Overview */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* Month-over-Month Risk Shift Indicator & Trailing 3-Month Baseline */}
+          <MomRiskShiftIndicator project={project} variant="card" />
+
+          {/* Site Digital Twin Quick Launch Banner */}
+          <div className="bg-gradient-to-r from-slate-900 to-blue-950 rounded-xl p-4 text-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-blue-600/30 text-blue-300 border border-blue-500/30">
+                <Cpu className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  Site Digital Twin & Schematics Active
+                  <span className="text-[10px] uppercase font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.5 rounded">
+                    BIM & GIS Telemetry
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-300">
+                  Inspect 2D geospatial workfront footprints, longitudinal engineering CAD schematics, and IoT sensor strain across specific site packages.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('digital_twin')}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors shrink-0 shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Explore Digital Twin</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left: Analytical Narrative */}
             <div className="lg:col-span-7 space-y-4">
@@ -469,8 +521,18 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </div>
           </div>
 
+          {/* Phase-Wise Budget vs Actual Capital Breakdown Bar Chart */}
+          <PhaseBudgetVsActualChart project={project} />
+
           {/* Project Timeline & Key Milestones Visual Progress Track */}
           <ProjectTimeline project={project} />
+        </div>
+      )}
+
+      {/* Tab: Site Digital Twin View (2D Map & Schematics Overlay) */}
+      {activeTab === 'digital_twin' && (
+        <div className="space-y-6">
+          <SiteDigitalTwinView project={project} />
         </div>
       )}
 
@@ -489,6 +551,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             title={`${project.name} - Monthly Execution Trajectory`}
             subtitle="Comparing Planned vs Actual Milestones (Physical) and Budget Disbursal (Financial)"
           />
+
+          {/* Phase-Wise Budget vs Actual Capital Breakdown Bar Chart */}
+          <PhaseBudgetVsActualChart project={project} />
 
           {/* Historical Data Table */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
