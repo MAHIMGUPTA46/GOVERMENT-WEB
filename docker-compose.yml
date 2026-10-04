@@ -1,71 +1,73 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: paimana_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-paimana_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
-      POSTGRES_DB: ${POSTGRES_DB:-paimana_ai}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paimana_user -d paimana_ai"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
+  # ----------------------------------------------------------------------------
+  # Redis Pub/Sub & Shared Event Broker
+  # ----------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
-    container_name: paimana_redis
+    image: redis:7.2-alpine
+    container_name: paimana-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
 
-  backend:
+  # ----------------------------------------------------------------------------
+  # PAIMANA AI Full-Stack Application (Express + Vite + WebSocket Server)
+  # ----------------------------------------------------------------------------
+  app:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
-    container_name: paimana_backend
+      dockerfile: Dockerfile
+    container_name: paimana-app
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+asyncpg://paimana_user:secure_password@postgres:5432/paimana_ai
-      SYNC_DATABASE_URL: postgresql://paimana_user:secure_password@postgres:5432/paimana_ai
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-paimana-super-secret-key-prod-2026-mospi}
-    ports:
-      - "8000:8000"
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-    container_name: paimana_frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      PORT: 3000
-      NEXT_PUBLIC_API_URL: http://backend:8000
     ports:
       - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - REALTIME_ENABLED=true
+      - REALTIME_TRANSPORT=websocket
+      - REDIS_URL=redis://redis:6379/0
+      - REALTIME_CHANNEL_PREFIX=paimana:realtime
+      - REALTIME_HEARTBEAT_SECONDS=25
+      - REALTIME_MAX_CONNECTIONS_PER_USER=5
+      - REALTIME_RECONNECT_MAX_SECONDS=60
+      - WS_TOKEN_SECRET=paimana-production-secure-hmac-token-secret-2026
+      # Public browser-facing variables (never private docker hostnames):
+      - VITE_API_URL=http://localhost:3000
+      - VITE_WS_URL=ws://localhost:3000/api/v1/realtime/ws
+      - VITE_SSE_URL=http://localhost:3000/api/v1/realtime/events
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ----------------------------------------------------------------------------
+  # Nginx Reverse Proxy with WebSocket Upgrades
+  # ----------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: paimana-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
-  postgres_data:
   redis_data:

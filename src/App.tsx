@@ -26,7 +26,7 @@ import {
   updateLinkedProjectAndInterventionTx 
 } from './services/firestoreSync';
 import { runDataQualityCheck } from './utils/dataQualityCheck';
-import { useRealtimeUpdates } from './hooks/useRealtimeUpdates';
+import { useRealtimeConnection } from './hooks/useRealtimeConnection';
 import { authService } from './lib/firebase';
 import { speechSynthesisService } from './services/speechSynthesisService';
 import { AuthDashboard } from './components/auth/AuthDashboard';
@@ -108,9 +108,18 @@ export default function App() {
   const [ingestNotification, setIngestNotification] = useState<string | null>(null);
 
   // Centralized Real-Time WebSocket & SSE event bus subscription
-  useRealtimeUpdates({
+  const {
+    connectionStatus,
+    transport,
+    latencyMs,
+    eventCount,
+    lastEventAt,
+    reconnect,
+  } = useRealtimeConnection({
     userId: currentUser.id,
     role: currentUser.role,
+    ministry: currentUser.ministry,
+    isAuthenticated: true,
     onRiskUpdate: (projectId, riskScore, riskLevel) => {
       setProjects((prev) =>
         prev.map((p) =>
@@ -133,6 +142,12 @@ export default function App() {
           description: `Machine learning risk engine updated score to ${riskScore}. Priority cabinet review recommended.`,
         });
       }
+    },
+    onProjectCreated: (newProj) => {
+      setProjects((prev) => {
+        if (prev.some((p) => p.id === newProj.id || p.projectCode === newProj.projectCode)) return prev;
+        return [newProj, ...prev];
+      });
     },
     onProjectUpdate: (updatedProject) => {
       if (!updatedProject.id && !updatedProject.projectCode) return;
@@ -165,12 +180,28 @@ export default function App() {
         });
       }
     },
+    onAlertUpdated: (updatedAlert) => {
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === updatedAlert.id ? { ...a, ...updatedAlert } : a))
+      );
+    },
+    onAlertResolved: (alertId) => {
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === alertId ? { ...a, status: 'resolved' as const } : a))
+      );
+    },
     onAlertStatusChanged: (alertId, status, assignedTo) => {
       setAlerts((prev) =>
         prev.map((a) =>
           a.id === alertId ? { ...a, status: status as any, assignedTo: assignedTo || a.assignedTo } : a
         )
       );
+    },
+    onInterventionCreated: (newIntv) => {
+      setInterventions((prev) => {
+        if (prev.some((i) => i.id === newIntv.id)) return prev;
+        return [newIntv, ...prev];
+      });
     },
     onInterventionUpdated: (updatedIntv) => {
       setInterventions((prev) => {
@@ -180,6 +211,14 @@ export default function App() {
         }
         return [updatedIntv, ...prev];
       });
+    },
+    onFreshnessUpdate: (data) => {
+      // Data freshness event seamlessly processed
+    },
+    onSyncProgress: (data) => {
+      if (data.status === 'completed') {
+        setIngestNotification('Central database sync completed via real-time bus.');
+      }
     },
   });
 
@@ -378,6 +417,12 @@ export default function App() {
         onTriggerGoogleSignIn={handleTriggerGoogleSignIn}
         onSignOut={handleSignOut}
         isGoogleConnected={isGoogleConnected}
+        realtimeStatus={connectionStatus}
+        realtimeTransport={transport}
+        realtimeLatencyMs={latencyMs}
+        realtimeEventCount={eventCount}
+        realtimeLastEventAt={lastEventAt}
+        onRealtimeReconnect={reconnect}
       />
 
       {/* Main Layout Container */}

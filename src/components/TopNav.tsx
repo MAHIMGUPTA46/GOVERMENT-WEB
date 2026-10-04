@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { User, Alert } from '../types';
 import { DEMO_USERS } from '../data/mockData';
+import { RealTimeStatus } from './realtime/RealTimeStatus';
+import { RealtimeConnectionState, RealtimeTransportType } from '../hooks/useRealtimeConnection';
 
 interface TopNavProps {
   currentUser: User;
@@ -36,6 +38,12 @@ interface TopNavProps {
   onTriggerGoogleSignIn?: () => Promise<void>;
   onSignOut?: () => void;
   isGoogleConnected?: boolean;
+  realtimeStatus?: RealtimeConnectionState;
+  realtimeTransport?: RealtimeTransportType;
+  realtimeLatencyMs?: number;
+  realtimeEventCount?: number;
+  realtimeLastEventAt?: string | null;
+  onRealtimeReconnect?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -53,6 +61,12 @@ export const TopNav: React.FC<TopNavProps> = ({
   onTriggerGoogleSignIn,
   onSignOut,
   isGoogleConnected = false,
+  realtimeStatus = 'connected',
+  realtimeTransport = 'websocket',
+  realtimeLatencyMs = 12,
+  realtimeEventCount = 0,
+  realtimeLastEventAt = null,
+  onRealtimeReconnect,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
@@ -294,6 +308,16 @@ export const TopNav: React.FC<TopNavProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Central Real-Time Connection & Health Status Indicator */}
+            <RealTimeStatus
+              status={realtimeStatus}
+              transport={realtimeTransport}
+              latencyMs={realtimeLatencyMs}
+              eventCount={realtimeEventCount}
+              lastEventAt={realtimeLastEventAt}
+              onReconnect={onRealtimeReconnect}
+            />
 
             {/* Google Workspace Connection Pill / Action */}
             <button

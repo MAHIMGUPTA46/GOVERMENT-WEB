@@ -151,6 +151,7 @@ export interface Project {
   originalStartDate: string;
   originalCompletionDate: string;
   currentCompletionDate: string;
+  anticipatedCompletionDate?: string;
   projectStatus: ProjectStatus;
   physicalProgress: number; // 0-100%
   financialProgress: number; // 0-100%
@@ -168,6 +169,7 @@ export interface Project {
   snapshots: ProjectMonthlySnapshot[];
   riskAssessment: RiskAssessment;
   activeAlertsCount: number;
+  interventions?: Intervention[];
 }
 
 export interface ModelMetrics {

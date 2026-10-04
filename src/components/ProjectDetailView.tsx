@@ -28,7 +28,7 @@ import { DataQualityBadge } from './DataQualityBadge';
 import { CostComparisonChart } from './charts/CostComparisonChart';
 import { MonthlyProgressChart } from './charts/MonthlyProgressChart';
 import { ShapWaterfallChart } from './charts/ShapWaterfallChart';
-import { generateProjectPdfBrief } from '../utils/generatePdfBrief';
+import { generateExecutiveBriefingNotePdf, generateProjectPdfBrief } from '../utils/generatePdfBrief';
 import { ProjectTimeline } from './ProjectTimeline';
 import { MomRiskShiftIndicator } from './MomRiskShiftIndicator';
 import { SiteDigitalTwinView } from './SiteDigitalTwinView';
@@ -101,22 +101,12 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => generateProjectPdfBrief(project, 'August 2026')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:border-blue-300 text-blue-800 font-semibold text-xs rounded-lg transition-colors shadow-2xs"
-            title="Generate and download formatted PDF Brief via jsPDF"
+            onClick={() => generateExecutiveBriefingNotePdf(project, 'August 2026')}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs rounded-lg transition-colors shadow-xs cursor-pointer"
+            title="Download formatted 2-page Executive Briefing Note PDF with status, budget utilization, and pending interventions for printing"
           >
-            <Download className="w-3.5 h-3.5 text-blue-700" />
-            <span>Generate PDF Brief</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => generateProjectPdfBrief(project, 'August 2026')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-900 font-semibold text-xs rounded-lg transition-colors shadow-2xs cursor-pointer"
-            title="Generate formatted, printer-friendly summary of this project's current status and risk profile via jsPDF"
-          >
-            <Download className="w-3.5 h-3.5 text-blue-700" />
-            <span>Generate PDF Brief</span>
+            <Download className="w-3.5 h-3.5 text-blue-200" />
+            <span>Download Briefing Note</span>
           </button>
 
           <button
@@ -720,12 +710,23 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 High-level inter-ministerial actions tracked via Project Monitoring Group (PMG)
               </p>
             </div>
-            <button
-              onClick={() => setShowInterventionModal(true)}
-              className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-medium text-xs rounded-lg transition-colors"
-            >
-              + Log New Action
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => generateExecutiveBriefingNotePdf(project, 'August 2026')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-semibold text-xs rounded-lg transition-colors border border-blue-200 shadow-2xs cursor-pointer"
+                title="Download formatted 2-page Executive Briefing Note PDF with status, budget utilization, and pending interventions for printing"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-700" />
+                <span>Download Briefing Note</span>
+              </button>
+              <button
+                onClick={() => setShowInterventionModal(true)}
+                className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
+              >
+                + Log New Action
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">

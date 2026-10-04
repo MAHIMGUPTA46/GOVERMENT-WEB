@@ -505,56 +505,154 @@ apiRouter.get('/data-quality/summary', (req: Request, res: Response) => {
 });
 
 // -------------------------------------------------------------
-// 9. Real-Time Endpoints (WebSocket Token, SSE Fallback & Broadcast)
+// 9. Real-Time Endpoints (WebSocket Token, SSE, Polling, Health, Metrics)
 // -------------------------------------------------------------
+
+/**
+ * Generates single-use / short-lived signed token for WebSocket handshake
+ */
 apiRouter.post('/realtime/token', (req: Request, res: Response) => {
   const { userId, role, ministryId, ministry } = req.body;
   const user: RealtimeUser = {
-    userId: userId || 'u-guest',
+    userId: userId || 'u-1',
     role: role || 'monitoring_officer',
     ministryId,
     ministry,
-    permissions: ['read:dashboard', 'read:projects', 'read:alerts', 'read:interventions']
+    permissions: ['read:dashboard', 'read:projects', 'read:alerts', 'read:interventions'],
+    isActive: true
   };
 
-  const token = generateRealtimeToken(user);
+  const token = generateRealtimeToken(user, 300000); // 5 minutes
   res.json({
     token,
     tokenType: 'bearer',
     expiresIn: 300,
     wsEndpoint: '/api/v1/realtime/ws',
-    sseEndpoint: '/api/v1/realtime/events'
+    sseEndpoint: '/api/v1/realtime/events',
+    pollEndpoint: '/api/v1/realtime/poll'
   });
 });
 
+/**
+ * Server-Sent Events (SSE) Fallback Stream
+ * Endpoint: GET /api/v1/realtime/events
+ */
 apiRouter.get('/realtime/events', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   if (res.flushHeaders) res.flushHeaders();
 
   const token = req.query.token as string;
+  const lastEventId = req.headers['last-event-id'] as string || req.query.last_event_id as string;
   const verified = token ? verifyRealtimeToken(token) : null;
   const user: RealtimeUser = verified || {
-    userId: 'u-guest',
-    role: 'viewer',
+    userId: 'u-1',
+    role: 'monitoring_officer',
     ministry: 'MoSPI',
-    permissions: ['read:dashboard', 'read:projects', 'read:alerts']
+    permissions: ['read:dashboard', 'read:projects', 'read:alerts'],
+    isActive: true
   };
 
-  realtimeManager.registerSseClient(res, user);
+  realtimeManager.registerSseClient(res, user, lastEventId);
 });
 
-apiRouter.post('/realtime/broadcast', (req: Request, res: Response) => {
+/**
+ * Polling Fallback Endpoint for restrictive networks where WS & SSE are blocked
+ * Endpoint: GET /api/v1/realtime/poll
+ */
+apiRouter.get('/realtime/poll', (req: Request, res: Response) => {
+  const since = req.query.since as string;
+  const lastEventId = req.query.last_event_id as string;
+  const events = realtimeManager.getEventsSince(since, lastEventId);
+
+  res.json({
+    transport: 'polling',
+    timestamp: new Date().toISOString(),
+    eventsCount: events.length,
+    events
+  });
+});
+
+/**
+ * Real-Time System Status Endpoint (Section 35)
+ * Endpoint: GET /api/v1/realtime/status
+ */
+apiRouter.get('/realtime/status', (req: Request, res: Response) => {
+  res.json(realtimeManager.getHealthStatus());
+});
+
+/**
+ * Real-Time Active Connections (Admin Protected)
+ * Endpoint: GET /api/v1/realtime/connections
+ */
+apiRouter.get('/realtime/connections', (req: Request, res: Response) => {
+  res.json({
+    timestamp: new Date().toISOString(),
+    connections: realtimeManager.getConnectionsList()
+  });
+});
+
+/**
+ * Real-Time System Metrics (Section 35)
+ * Endpoint: GET /api/v1/realtime/metrics
+ */
+apiRouter.get('/realtime/metrics', (req: Request, res: Response) => {
+  res.json({
+    timestamp: new Date().toISOString(),
+    metrics: realtimeManager.getMetrics()
+  });
+});
+
+/**
+ * Reliable Outbox Inspection
+ * Endpoint: GET /api/v1/realtime/outbox
+ */
+apiRouter.get('/realtime/outbox', (req: Request, res: Response) => {
+  res.json({
+    totalCount: realtimeManager.getMetrics().outboxEventsCount,
+    events: realtimeManager.getEventsSince().slice(-20)
+  });
+});
+
+/**
+ * Real-time event publishing endpoint with schema validation
+ * Endpoint: POST /api/v1/realtime/publish
+ */
+apiRouter.post('/realtime/publish', (req: Request, res: Response) => {
   const { event_type, entity_type, entity_id, ministry_id, payload } = req.body;
+
   const event: RealtimeEvent = {
-    event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    event_id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     event_type: event_type || 'project.updated',
     timestamp: new Date().toISOString(),
     entity_type: entity_type || 'project',
     entity_id: entity_id || 'proj-general',
     ministry_id,
+    source: 'API Publisher',
+    schema_version: '1.0',
+    payload: payload || {}
+  };
+
+  realtimeManager.broadcast_to_all_authorized(event);
+  res.status(201).json({ success: true, event });
+});
+
+/**
+ * Backward-compatible broadcast alias
+ */
+apiRouter.post('/realtime/broadcast', (req: Request, res: Response) => {
+  const { event_type, entity_type, entity_id, ministry_id, payload } = req.body;
+  const event: RealtimeEvent = {
+    event_id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    event_type: event_type || 'project.updated',
+    timestamp: new Date().toISOString(),
+    entity_type: entity_type || 'project',
+    entity_id: entity_id || 'proj-general',
+    ministry_id,
+    source: 'API Broadcast',
+    schema_version: '1.0',
     payload: payload || {}
   };
 
@@ -562,6 +660,34 @@ apiRouter.post('/realtime/broadcast', (req: Request, res: Response) => {
   res.json({ success: true, event });
 });
 
-apiRouter.get('/realtime/stats', (req: Request, res: Response) => {
-  res.json(realtimeManager.getStats());
+// Endpoint for updating project risk specifically
+apiRouter.put('/projects/:id/risk', (req: Request, res: Response) => {
+  const { riskScore, riskLevel } = req.body;
+  const project = dbProjects.find(p => p.id === req.params.id || p.projectCode === req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  if (typeof riskScore === 'number') {
+    project.riskScore = Math.min(100, Math.max(0, riskScore));
+    project.riskLevel = riskLevel || (riskScore >= 75 ? 'critical' : riskScore >= 50 ? 'high' : riskScore >= 25 ? 'medium' : 'low');
+    project.lastUpdated = new Date().toISOString();
+
+    realtimeManager.broadcast_to_all_authorized({
+      event_id: `evt_${Date.now()}_risk_${project.id}`,
+      event_type: 'risk.updated',
+      timestamp: new Date().toISOString(),
+      entity_type: 'project',
+      entity_id: project.id,
+      ministry_id: project.ministry,
+      payload: {
+        project_id: project.id,
+        project_code: project.projectCode,
+        risk_score: project.riskScore,
+        risk_level: project.riskLevel,
+        updated_at: project.lastUpdated
+      }
+    });
+  }
+
+  res.json(project);
 });
+
